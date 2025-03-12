@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avisador de Terremotos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Posible movimiento de placa tectónica</h1>
+        <form id="earthquakeForm">
+            <label for="mag">Magnitud (ºR):</label>
+            <input type="number" id="mag" name="mag" step="0.1" required>
+            <br>
+            <label for="depth">Profundidad (km):</label>
+            <input type="number" id="depth" name="depth" step="0.1" required>
+            <br>
+            <label for="latitude">Latitud (O):</label>
+            <input type="number" id="latitude" name="latitude" step="0.0001" required>
+            <br>
+            <label for="longitude">Longitud (S):</label>
+            <input type="number" id="longitude" name="longitude" step="0.0001" required>
+            <br>
+            <button type="submit">Predecir</button>
+        </form>
+        <div class="result" id="result">
+            <!-- Aquí se mostrará el resultado -->
+        </div>
+        <div class="details" id="details">
+            <!-- Aquí se mostrarán los detalles -->
+        </div>
+        <canvas id="earthquakeChart" width="400" height="200"></canvas>
+        <div id="map"></div>
+
+        <!-- Sección "Tener en cuenta y rellenar los campos" -->
+        <div class="instructions">
+            <h2>Tener en cuenta y rellenar los campos</h2>
+            <ul>
+                <li><b>Magnitud:</b> Grado de magnitud de posible sismo.</li>
+                <li><b>Profundidad:</b> Distancia desde la superficie al epicentro.</li>
+                <li><b>Latitud:</b> Recordar que es América del Sur (de 0 a 90).</li>
+                <li><b>Longitud:</b> Recordar que es América del Sur (de 81 a 10).</li>
+            </ul>
+        </div>
+
+        <!-- Sección "Limitaciones y Consideraciones" -->
+        <div class="limitations">
+            <h2>Limitaciones y Consideraciones</h2>
+            <ul>
+                <li><b>Falsa alarma:</b> Este modelo de predicción de terremotos puede generar falsas alarmas, lo que puede causar pánico y disrupción.</li>
+                <li><b>Precisión limitada:</b> No se puede garantizar la precisión.</li>
+                <li><b>Responsabilidad:</b> Es importante comunicar claramente las limitaciones del modelo y evitar dar falsas expectativas. La aplicación debe indicar claramente que se trata de una estimación de probabilidad y no de una predicción definitiva.</li>
+            </ul>
+        </div>
+
+        <!-- Sección "Rango de fechas de los datos" -->
+        <div class="date-range" id="dateRange">
+            <!-- Aquí se mostrará el rango de fechas -->
+        </div>
+    </div>
+</body>
+</html>
