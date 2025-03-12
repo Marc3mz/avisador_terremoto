@@ -4,11 +4,91 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Avisador de Terremotos</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            color: #333;
+            background-color: #e0e0e0;
+            display: none; /* Ocultar inicialmente */
+        }
+        .alert {
+            background-color: #ffcccc; /* Rojo claro para alerta */
+        }
+        .safe {
+            background-color: #ccffcc; /* Verde claro para seguro */
+        }
+        .details {
+            margin-top: 20px;
+            text-align: left;
+        }
+        canvas {
+            margin-top: 20px;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .instructions, .limitations {
+            margin-top: 20px;
+            text-align: left;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .instructions h2, .limitations h2 {
+            margin-top: 0;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        .date-range {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -63,5 +143,178 @@
             <!-- Aquí se mostrará el rango de fechas -->
         </div>
     </div>
+
+    <script>
+        let earthquakeChart;
+        let map;
+        let marker;
+        const predictionHistory = [];
+
+        // Inicializar el mapa
+        function initMap() {
+            map = L.map('map').setView([-15, -70], 4); // Centrar en América del Sur
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Actualizar el mapa con la ubicación del epicentro
+        function updateMap(latitude, longitude) {
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            marker = L.marker([latitude, longitude]).addTo(map);
+            map.setView([latitude, longitude], 6); // Centrar en el epicentro
+        }
+
+        // Función para actualizar la gráfica
+        function updateChart(probability) {
+            const ctx = document.getElementById('earthquakeChart').getContext('2d');
+
+            if (earthquakeChart) {
+                earthquakeChart.destroy(); // Destruir la gráfica anterior
+            }
+
+            earthquakeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Probabilidad de Terremoto'],
+                    datasets: [{
+                        label: 'Probabilidad (%)',
+                        data: [probability * 100], // Convertir a porcentaje
+                        backgroundColor: probability >= 0.5 ? '#ff6666' : '#66cc66',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // Función para actualizar el historial
+        function updateHistory(mag, depth, latitude, longitude, prediction, probability) {
+            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            const newRow = historyTable.insertRow(0);
+            newRow.innerHTML = `
+                <td>${mag}</td>
+                <td>${depth}</td>
+                <td>${latitude}</td>
+                <td>${longitude}</td>
+                <td>${prediction === 1 ? 'Alerta' : 'Seguro'}</td>
+                <td>${(probability * 100).toFixed(2)}%</td>
+            `;
+        }
+
+        // Obtener datos de terremotos recientes de la API de USGS
+        async function fetchRecentEarthquakes() {
+            const endDate = new Date().toISOString().split('T')[0]; // Fecha actual
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30); // Restar 30 días
+            const startDateFormatted = startDate.toISOString().split('T')[0];
+
+            const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startDateFormatted}&endtime=${endDate}&minmagnitude=4.0`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                // Mostrar el rango de fechas
+                const dateRangeDiv = document.getElementById('dateRange');
+                dateRangeDiv.innerHTML = `Datos mostrados desde <b>${startDateFormatted}</b> hasta <b>${endDate}</b>.`;
+
+                return data.features;
+            } catch (error) {
+                console.error('Error al obtener datos de terremotos:', error);
+                return [];
+            }
+        }
+
+        // Mostrar terremotos recientes en el mapa
+        async function showRecentEarthquakes() {
+            const earthquakes = await fetchRecentEarthquakes();
+            earthquakes.forEach(earthquake => {
+                const [longitude, latitude, depth] = earthquake.geometry.coordinates;
+                const magnitude = earthquake.properties.mag;
+                L.circleMarker([latitude, longitude], {
+                    radius: magnitude * 2,
+                    color: '#ff0000',
+                    fillColor: '#ff6666',
+                    fillOpacity: 0.5
+                }).addTo(map).bindPopup(`Magnitud: ${magnitude}<br>Profundidad: ${depth} km`);
+            });
+        }
+
+        // Inicializar el mapa y mostrar terremotos recientes al cargar la página
+        initMap();
+        showRecentEarthquakes();
+
+        document.getElementById('earthquakeForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            // Obtener los valores del formulario
+            const mag = parseFloat(document.getElementById('mag').value);
+            const depth = parseFloat(document.getElementById('depth').value);
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+
+            // Enviar los datos al backend
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mag, depth, latitude, longitude }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la solicitud');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                const detailsDiv = document.getElementById('details');
+                resultDiv.style.display = 'block'; // Mostrar la caja de resultado
+
+                if (data.prediction === 1) {
+                    resultDiv.textContent = 'Alerta: Posible terremoto de magnitud significativa.';
+                    resultDiv.className = 'result alert'; // Aplicar estilo de alerta
+                } else {
+                    resultDiv.textContent = 'No se espera un terremoto de magnitud significativa.';
+                    resultDiv.className = 'result safe'; // Aplicar estilo seguro
+                }
+
+                // Mostrar detalles de la predicción
+                detailsDiv.innerHTML = `
+                    <h3>Detalles de la Predicción</h3>
+                    <p><b>Magnitud:</b> ${mag} ºR</p>
+                    <p><b>Profundidad:</b> ${depth} km</p>
+                    <p><b>Latitud:</b> ${latitude} O</p>
+                    <p><b>Longitud:</b> ${longitude} S</p>
+                    <p><b>Probabilidad:</b> ${(data.probability * 100).toFixed(2)}%</p>
+                `;
+
+                // Actualizar la gráfica
+                updateChart(data.probability);
+
+                // Actualizar el mapa
+                updateMap(latitude, longitude);
+
+                // Actualizar el historial
+                updateHistory(mag, depth, latitude, longitude, data.prediction, data.probability);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const resultDiv = document.getElementById('result');
+                resultDiv.textContent = 'Error al realizar la predicción.';
+                resultDiv.className = 'result alert'; // Aplicar estilo de error
+            });
+        });
+    </script>
 </body>
 </html>
